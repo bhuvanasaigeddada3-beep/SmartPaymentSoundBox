@@ -140,7 +140,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         if (tts != null) {
             tts.stop();
             tts.shutdown();
