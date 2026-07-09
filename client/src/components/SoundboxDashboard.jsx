@@ -170,8 +170,8 @@ export default function SoundboxDashboard({ merchantConfig, onBackToSetup }) {
         notificationAudioRef.current.play().catch(e => console.log("Audio deferred:", e));
       }
 
-      // Voice TTS speaking engine
-      if (speakerEnabled) {
+      // Voice TTS speaking engine (Only if running on standard web. Native Java handles background TTS directly)
+      if (speakerEnabled && !window.NativeSoundbox) {
         setTimeout(() => {
           speakAnnouncement({
             amount: txn.amount,
@@ -192,6 +192,14 @@ export default function SoundboxDashboard({ merchantConfig, onBackToSetup }) {
       window.onNativeSmsReceived = null;
     };
   }, [speakerEnabled, speechLang, selectedVoice]);
+
+  // Sync settings (language & app brand) to native SharedPreferences for background SMS speaking
+  useEffect(() => {
+    if (window.NativeSoundbox) {
+      window.NativeSoundbox.updateSettings(speechLang, appStyle);
+      console.log("Settings synced to Android native preferences:", speechLang, appStyle);
+    }
+  }, [speechLang, appStyle]);
 
   // Generate dynamic payment link for customer
   const handleGeneratePayment = (e) => {
@@ -222,12 +230,24 @@ export default function SoundboxDashboard({ merchantConfig, onBackToSetup }) {
     }
     
     setTimeout(() => {
-      speakAnnouncement({
-        amount: 250,
-        app: appStyle,
-        language: speechLang,
-        voiceURI: selectedVoice
-      });
+      if (window.NativeSoundbox) {
+        // Build Telugu/Hindi/English native speak text
+        const formattedApp = appStyle === "GPay" ? "గూగుల్ పే" : appStyle === "PhonePe" ? "ఫోన్ పే" : appStyle === "Paytm" ? "పేటియం" : "యూ పి ఐ";
+        const testText = speechLang === "te"
+          ? `${formattedApp} ద్వారా రెండు వందల యాభై రూపాయలు లభించాయి. ధన్యవాదాలు బాస్!`
+          : speechLang === "hi"
+          ? `${appStyle === "GPay" ? "गूगल पे" : appStyle === "PhonePe" ? "फ़ोन पे" : appStyle === "Paytm" ? "पेटीएम" : "यू पी आई"} पर दो सौ पचास रुपये प्राप्त हुए। धन्यवाद बॉस!`
+          : `Received 250 rupees on ${appStyle}. Thank you boss!`;
+          
+        window.NativeSoundbox.speakNative(testText, speechLang);
+      } else {
+        speakAnnouncement({
+          amount: 250,
+          app: appStyle,
+          language: speechLang,
+          voiceURI: selectedVoice
+        });
+      }
       setIsTesting(false);
     }, 800);
   };
