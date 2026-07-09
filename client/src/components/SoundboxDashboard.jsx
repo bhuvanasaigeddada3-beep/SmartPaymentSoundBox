@@ -37,17 +37,36 @@ export default function SoundboxDashboard({ merchantConfig, onBackToSetup }) {
   const webhookUrl = `${BACKEND_URL}/api/sms-webhook?merchantId=${merchantId}`;
   
   // Direct customer page link
-  const customerLink = `${window.location.origin}/pay?merchantId=${merchantId}`;
+  const getCustomerLink = () => {
+    try {
+      const url = new URL(BACKEND_URL);
+      // If backend is on local network IP, point customer link to Vite dev port 5173 on that same IP
+      if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") {
+        return `http://${url.hostname}:5173/pay?merchantId=${merchantId}`;
+      }
+    } catch (e) {
+      console.error("Error parsing BACKEND_URL:", e);
+    }
+    // Fallback to local origin (works for Netlify production or local desktop testing)
+    return `${window.location.origin}/pay?merchantId=${merchantId}`;
+  };
 
-  // Initialize voices list
+  const customerLink = getCustomerLink();
+
+  // Initialize voices list safely
   useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      console.log("speechSynthesis not supported/initialized yet on this device.");
+      return;
+    }
+
     const voices = getAvailableVoices();
     setVoiceList(voices);
     
     // Choose appropriate default voice matching language
     if (voices.length > 0) {
       const defaultVoice = voices.find(v => v.lang.startsWith(speechLang)) || voices.find(v => v.lang.startsWith("hi")) || voices[0];
-      setSelectedVoice(defaultVoice.voiceURI);
+      setSelectedVoice(defaultVoice ? defaultVoice.voiceURI : "");
     }
 
     const handleVoicesChanged = () => {
@@ -55,7 +74,9 @@ export default function SoundboxDashboard({ merchantConfig, onBackToSetup }) {
       setVoiceList(updated);
     };
 
-    window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = handleVoicesChanged;
+    }
     return () => {
       if (window.speechSynthesis) {
         window.speechSynthesis.onvoiceschanged = null;
